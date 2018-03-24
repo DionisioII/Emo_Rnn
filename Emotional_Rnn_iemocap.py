@@ -4,15 +4,15 @@ import tensorflow as tf
 
 
  #RNN Model Parameters
-rnn_cell_size = 256 # hidden layer num of features (RNN hidden layer config size. Start with 128)
-rnn_data_classes = 4 # One value (vec negative, neutral, positive)
+rnn_cell_size = 256 # hidden layer num of features (RNN hidden layer config size.)
+rnn_data_classes = 4 # One value 
 rnn_data_vec_size = 165
 rnn_lstm_forget_bias = 1.0
 rnn_dropout_keep_prob = 0.2
 LEARNING_RATE = 0.001
 rnn_num_epochs = 30
 batch_size = 128
-TINY = 1e-6 # to avoid NaNs in logs
+
 
 
 #################################################
