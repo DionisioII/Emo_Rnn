@@ -1,5 +1,6 @@
 from Import_data import *
-from lstm import *
+from tflearn.data_utils import to_categorical
+from os.path import isfile
 import tensorflow as tf
 
 
@@ -9,10 +10,10 @@ rnn_data_classes = 4 # One value
 rnn_data_vec_size = 165
 rnn_lstm_forget_bias = 1.0
 rnn_dropout_keep_prob = 0.2
-LEARNING_RATE = 0.001
-rnn_num_epochs = 1
+LEARNING_RATE = 0.0001
+rnn_num_epochs = 6
 batch_size = 0
-dataset_size = 310
+dataset_size = 2200
 ##############################################################
 ####                 USEFUL FUNCTIONS                   ######
 ##############################################################
@@ -22,6 +23,7 @@ def find_longest_sequence_lenght(sequences):
     lenght= 0
     for x in sequences:
         if len(x)> lenght:
+           
             lenght = len(x)
     return lenght
 
@@ -34,21 +36,96 @@ def pad_sequences_with_zero_vectors(sequences,max_sequence_num):
             x.append(np.array(pad))
     return np.array(list(sequences)),lengths_vector
 
+#function to split train_set into train and validation sets
+def split_holdout_train_set(X_train_set,Y_train_set):
+
+    hap, max_hap = 0, 262
+    sad, max_sad = 0, 435
+    neu, max_neu = 0, 496
+    ang, max_ang = 0, 509
+
+    new_X_train_set = []
+    new_Y_train_set = []
+    X_test_set = []
+    Y_test_set = []
+
+    print(X_train_set.shape)
+    print(Y_train_set.shape)
+    count = 0
+    for x in Y_train_set:
+        if x == 0:
+            if hap < max_hap:
+                new_X_train_set.append(X_train_set[count])
+                new_Y_train_set.append(x)
+                hap+=1
+            else:
+                Y_test_set.append(x)
+                #Y_train_set = np.delete(Y_train_set,count)
+                X_test_set.append(X_train_set[count])
+                #X_train_set = np.delete(X_train_set,count)
+        
+        elif x == 1:
+            if neu < max_neu:
+                new_X_train_set.append(X_train_set[count])
+                new_Y_train_set.append(x)
+                neu+=1
+            else:
+                Y_test_set.append(x)
+                #Y_train_set = np.delete(Y_train_set,count)
+                X_test_set.append(X_train_set[count])
+                #X_train_set = np.delete(X_train_set,count)
+        
+        elif x == 2:
+            if sad < max_sad:
+                new_X_train_set.append(X_train_set[count])
+                new_Y_train_set.append(x)
+                sad+=1
+            else:
+                Y_test_set.append(x)
+                #Y_train_set = np.delete(Y_train_set,count)
+                X_test_set.append(X_train_set[count])
+                #X_train_set = np.delete(X_train_set,count)
+        
+        elif x == 3:
+            if ang < max_ang:
+                new_X_train_set.append(X_train_set[count])
+                new_Y_train_set.append(x)
+                ang+=1
+            else:
+                Y_test_set.append(x)
+                #Y_train_set = np.delete(Y_train_set,count)
+                X_test_set.append(X_train_set[count])
+                #X_train_set = np.delete(X_train_set,count)
+        count +=1
+    
+    return np.array(new_X_train_set), np.array(new_Y_train_set) , np.array(X_test_set) , np.array(Y_test_set)
+
+
+
 
 #################################################
 ####    PREPARE TRAIN AND VALIDATION SETS    ####
 #################################################
 
-X_train, Y_train, max_frames_per_video_test = import_data('training.csv')
+X_train_set, Y_train_set, max_frames_per_video_test = import_data('data/training20.csv')
+X_train, Y_train, X_test, Y_test = split_holdout_train_set(X_train_set,Y_train_set)
+max_frames_per_video_train = find_longest_sequence_lenght(X_train)
+max_frames_per_video_test = find_longest_sequence_lenght(X_test)
 
-trainX,lengths_vector = pad_sequences_with_zero_vectors(X_train,max_frames_per_video_test)
-print(trainX.shape)
+
+trainX,lengths_vector = pad_sequences_with_zero_vectors(X_train,max_frames_per_video_train)
+testX,lengths_vector_test = pad_sequences_with_zero_vectors(X_test,max_frames_per_video_test)
+print(testX.shape)
 trainY = to_categorical(Y_train,rnn_data_classes)
+testY = to_categorical(Y_test,rnn_data_classes)
 print(trainY.shape)
 
-X_test, Y_test,max_frames_per_video = import_data('training.csv')
+
+
+"""
+X_test, Y_test,max_frames_per_video = import_data('data/training20.csv')
 testX, lengths_vector_test = pad_sequences_with_zero_vectors(X_test,max_frames_per_video_test)
-testY = to_categorical(Y_test,rnn_data_classes)
+testY = to_categorical(Y_test,rnn_data_classes) """
 
 
 ###################################################
@@ -59,7 +136,9 @@ graph = tf.Graph()
 
 with graph.as_default():
 
-    inputs  = tf.placeholder(tf.float32, (None,max_frames_per_video,rnn_data_vec_size),name= "inputs")  # (time, batch, in)
+    max_frames_per_video = tf.Variable( 0,name = "max_frames_per_video")
+
+    inputs  = tf.placeholder(tf.float32, (None,None,rnn_data_vec_size),name= "inputs")  # (time, batch, in)
 
     outputs = tf.placeholder(tf.float32, (None, rnn_data_classes),name = "outputs") # (time, batch, out)
 
@@ -117,8 +196,10 @@ with tf.Session(graph=graph) as session:
     
     
     session.run(tf.global_variables_initializer())
-
-    saver.restore(session, "./model.ckpt")
+    saved_model = "checkpoints/model.ckpt"
+    if tf.train.checkpoint_exists(saved_model):
+        print("restoring model")
+        saver.restore(session, saved_model)
     
     
     #session.run(tf.local_variables_initializer())
@@ -161,7 +242,7 @@ with tf.Session(graph=graph) as session:
                 print(valid_accuracy)
                 
                 print ("Epoch %d, Batch %d, train error: %.5f, valid accuracy: %.9f %%" % (epoch, batch_num, epoch_error, valid_accuracy ))
-                save_path = saver.save(session, "./model.ckpt")
+                save_path = saver.save(session, "checkpoint/model.ckpt")
                 print("Model saved in path: %s" % save_path)
 
         else:
@@ -169,18 +250,20 @@ with tf.Session(graph=graph) as session:
             epoch_error = session.run([error, train_fn,tf_metric_update], {
                     inputs: trainX,
                     outputs: trainY,
-                    Seq_length:lengths_vector
+                    Seq_length:lengths_vector,
+                    max_frames_per_video: max_frames_per_video_train
             })[0]
             
             valid_accuracy= session.run(accuracy,feed_dict= {
                 inputs:  testX,
                 outputs: testY,
-                Seq_length: lengths_vector_test
+                Seq_length: lengths_vector_test,
+                max_frames_per_video: max_frames_per_video_test
             })
-
+ 
            
             
             print ("Epoch %d, train error: %.5f, valid accuracy: %.9f %%" % (epoch, epoch_error, valid_accuracy ))
             
-            save_path = saver.save(session, "./model.ckpt")
+            save_path = saver.save(session, saved_model)
             print("Model saved in path: %s" % save_path)
